@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>易双六 PTC — 音楽・効果音デモ</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<style>
+  :root {
+    --bg:      #0e0e12;
+    --panel:   #16161f;
+    --panel2:  #1c1c28;
+    --border:  #2a2a3e;
+    --gold:    #c8a832;
+    --dim:     #52506a;
+    --text:    #e4e0d4;
+    --sub:     #88869a;
+    --green:   #4caf72;
+    --red:     #b84444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem 3rem;
+  }
+  h1 { font-size:1rem; letter-spacing:.25em; color:var(--gold); text-transform:uppercase; margin-bottom:.25rem; }
+  .subtitle { font-size:.68rem; color:var(--dim); letter-spacing:.15em; margin-bottom:2rem; }
+  #status { font-size:.65rem; color:var(--dim); margin-bottom:1.5rem; letter-spacing:.1em; transition:color .3s; }
+  #status.ready { color:var(--green); }
+
+  .section { width:100%; max-width:500px; margin-bottom:1.8rem; }
+  .section-title {
+    font-size:.6rem; letter-spacing:.22em; color:var(--dim); text-transform:uppercase;
+    border-bottom:1px solid var(--border); padding-bottom:.35rem; margin-bottom:.8rem;
+  }
+
+  /* BGM table */
+  .bgm-table { width:100%; border-collapse:collapse; }
+  .bgm-table tr { border-bottom:1px solid var(--border); }
+  .bgm-table tr:last-child { border-bottom:none; }
+  .bgm-table td { padding:.55rem .5rem; vertical-align:middle; font-size:.72rem; }
+  .bgm-num { color:var(--dim); width:2.8rem; font-size:.6rem; letter-spacing:.04em; line-height:1.5; }
+  .bgm-scene { color:var(--sub); font-size:.68rem; line-height:1.4; }
+  .bgm-scene strong { color:var(--text); font-weight:normal; }
+  .bgm-file { color:var(--dim); font-size:.57rem; display:block; margin-top:.1rem; }
+  .bgm-controls { display:flex; gap:.35rem; justify-content:flex-end; white-space:nowrap; }
+  .btn-play, .btn-stop {
+    font-family:inherit; font-size:.62rem; padding:.28rem .55rem;
+    border:1px solid var(--border); background:var(--panel2); cursor:pointer;
+    transition:all .1s; letter-spacing:.04em;
+  }
+  .btn-play { color:var(--sub); }
+  .btn-play:hover { border-color:var(--gold); color:var(--gold); }
+  .btn-play.active { border-color:var(--green); color:var(--green); }
+  .btn-play.error { border-color:var(--red); color:var(--red); }
+  .btn-stop { color:var(--dim); }
+  .btn-stop:hover { border-color:var(--red); color:var(--red); }
+
+  /* SFX grid */
+  .sfx-grid { display:grid; grid-template-columns:1fr 1fr; gap:.5rem; }
+  .sfx-btn {
+    background:var(--panel); border:1px solid var(--border); color:var(--text);
+    font-family:inherit; font-size:.75rem; padding:.7rem .75rem; cursor:pointer;
+    text-align:left; transition:border-color .1s, background .1s; line-height:1.5;
+  }
+  .sfx-btn:hover { border-color:var(--gold); background:var(--panel2); }
+  .sfx-btn.flash { border-color:var(--green); }
+  .sfx-label { display:block; font-size:.62rem; color:var(--gold); letter-spacing:.1em; margin-bottom:.12rem; }
+  .sfx-desc  { display:block; font-size:.68rem; color:var(--sub); }
+  .sfx-mml   { display:block; font-size:.57rem; color:var(--dim); margin-top:.15rem; font-style:italic; }
+  .sfx-divider {
+    grid-column:1/-1; font-size:.58rem; color:var(--dim); letter-spacing:.18em;
+    text-transform:uppercase; border-top:1px solid var(--border); padding-top:.5rem; margin-top:.2rem;
+  }
+
+  .note {
+    font-size:.6rem; color:var(--dim); margin-top:1rem; line-height:1.9;
+    max-width:500px; border-top:1px solid var(--border); padding-top:1rem;
+  }
+  .note a { color:var(--gold); text-decoration:none; }
+  .note code { color:var(--sub); font-size:.58rem; }
+</style>
+</head>
+<body>
+
+<h1>易双六 PTC — 音楽・効果音デモ</h1>
+<p class="subtitle">BGM &amp; Sound Effects Reference · Tone.js + 魔王魂</p>
+<p id="status">▶ 最初のボタンをクリックして AudioContext を起動</p>
+
+<!-- BGM -->
+<div class="section">
+  <div class="section-title">BGM — プリセット番号 → 魔王魂素材 対応表</div>
+  <table class="bgm-table"><tbody>
+
+    <tr>
+      <td class="bgm-num">No.21<br>通路</td>
+      <td class="bgm-scene">
+        <strong>ダンジョン通路全般</strong>
+        <span class="bgm-file">maou_bgm_cyber29.mp3　loop</span>
+      </td>
+      <td class="bgm-controls">
+        <button class="btn-play" id="p21" onclick="playBGM('maou_bgm_cyber29.mp3', this)">▶</button>
+        <button class="btn-stop" onclick="stopAll()">■</button>
+      </td>
+    </tr>
+
+    <tr>
+      <td class="bgm-num">No.2<br>ボス</td>
+      <td class="bgm-scene">
+        <strong>門番との対決・緊迫場面</strong>
+        <span class="bgm-file">maou_game_boss05.mp3　loop</span>
+      </td>
+      <td class="bgm-controls">
+        <button class="btn-play" id="p2" onclick="playBGM('maou_game_boss05.mp3', this)">▶</button>
+        <button class="btn-stop" onclick="stopAll()">■</button>
+      </td>
+    </tr>
+
+    <tr>
+      <td class="bgm-num">No.5<br>女神</td>
+      <td class="bgm-scene">
+        <strong>女神イベント（飛ばされるチャラッ）</strong>
+        <span class="bgm-file">maou_game_event17.mp3　loop</span>
+      </td>
+      <td class="bgm-controls">
+        <button class="btn-play" id="p5" onclick="playBGM('maou_game_event17.mp3', this)">▶</button>
+        <button class="btn-stop" onclick="stopAll()">■</button>
+      </td>
+    </tr>
+
+    <tr>
+      <td class="bgm-num">No.6<br>G.O.</td>
+      <td class="bgm-scene">
+        <strong>ゲームオーバー</strong>
+        <span class="bgm-file">maou_bgm_orchestra19.mp3　loop</span>
+      </td>
+      <td class="bgm-controls">
+        <button class="btn-play" id="p6" onclick="playBGM('maou_bgm_orchestra19.mp3', this)">▶</button>
+        <button class="btn-stop" onclick="stopAll()">■</button>
+      </td>
+    </tr>
+
+    <tr>
+      <td class="bgm-num">No.9<br>祝福</td>
+      <td class="bgm-scene">
+        <strong>コングラチュレーション・クリア</strong>
+        <span class="bgm-file">maou_game_event37.mp3　loop</span>
+      </td>
+      <td class="bgm-controls">
+        <button class="btn-play" id="p9" onclick="playBGM('maou_game_event37.mp3', this)">▶</button>
+        <button class="btn-stop" onclick="stopAll()">■</button>
+      </td>
+    </tr>
+
+    <tr>
+      <td class="bgm-num">No.10<br>脱出</td>
+      <td class="bgm-scene">
+        <strong>落とし穴から空へ・脱出</strong>
+        <span class="bgm-file">maou_game_theme01.mp3　loop</span>
+      </td>
+      <td class="bgm-controls">
+        <button class="btn-play" id="p10" onclick="playBGM('maou_game_theme01.mp3', this)">▶</button>
+        <button class="btn-stop" onclick="stopAll()">■</button>
+      </td>
+    </tr>
+
+  </tbody></table>
+</div>
+
+<!-- SFX -->
+<div class="section">
+  <div class="section-title">効果音 — MML（@128 ドラム）＋ BEEP（プリセット波形）</div>
+  <div class="sfx-grid">
+
+    <div class="sfx-divider">MML 効果音（BGM_BEEP スロット使用）</div>
+
+    <button class="sfx-btn" onclick="snd_cd(this)">
+      <span class="sfx-label">SND_CD</span>
+      <span class="sfx-desc">カードを1枚置く</span>
+      <span class="sfx-mml">T120@128V80O4A64</span>
+    </button>
+
+    <button class="sfx-btn" onclick="snd_cd_shuffle(this)">
+      <span class="sfx-label">SND_CD_SHUFFLE</span>
+      <span class="sfx-desc">カードを配る・シャッフル</span>
+      <span class="sfx-mml">T120@128V80O4L16 AR×4</span>
+    </button>
+
+    <button class="sfx-btn" onclick="snd_srbn(this)">
+      <span class="sfx-label">SND_SRBN</span>
+      <span class="sfx-desc">そろばん珠をはじく</span>
+      <span class="sfx-mml">T120@128V100O2F+16</span>
+    </button>
+
+    <button class="sfx-btn" onclick="snd_srbn_clr(this)">
+      <span class="sfx-label">SND_SRBN_CLR</span>
+      <span class="sfx-desc">そろばんリセット</span>
+      <span class="sfx-mml">O2V120F+32F+8R8 V80F+64×6</span>
+    </button>
+
+    <div class="sfx-divider">BEEP 効果音（UI 操作）</div>
+
+    <button class="sfx-btn" onclick="beep_select(this)">
+      <span class="sfx-label">BEEP_SELECT = 48</span>
+      <span class="sfx-desc">メニュー選択（カーソル）</span>
+      <span class="sfx-mml">カウベル2 相当</span>
+    </button>
+
+    <button class="sfx-btn" onclick="beep_cancel(this)">
+      <span class="sfx-label">BEEP_CANCEL = 51</span>
+      <span class="sfx-desc">キャンセル</span>
+      <span class="sfx-mml">コンガ 相当</span>
+    </button>
+
+    <button class="sfx-btn" onclick="beep_click(this)">
+      <span class="sfx-label">BEEP_CLICK = 62</span>
+      <span class="sfx-desc">項目決定クリック</span>
+      <span class="sfx-mml">シンセ 相当</span>
+    </button>
+
+    <button class="sfx-btn" onclick="beep_popup(this)">
+      <span class="sfx-label">BEEP_POPUP = 61</span>
+      <span class="sfx-desc">ポップアップ表示</span>
+      <span class="sfx-mml">太鼓 相当</span>
+    </button>
+
+  </div>
+</div>
+
+<p class="note">
+  効果音は Tone.js (Web Audio API) で生成。外部ファイル不要。<br>
+  BGM は同ディレクトリに mp3 を配置してください：<br>
+  <code>maou_bgm_cyber29.mp3</code> &nbsp;
+  <code>maou_game_boss05.mp3</code> &nbsp;
+  <code>maou_game_event17.mp3</code> &nbsp;
+  <code>maou_bgm_orchestra19.mp3</code><br>
+  <code>maou_game_event37.mp3</code> &nbsp;
+  <code>maou_game_theme01.mp3</code><br><br>
+  音楽：<a href="https://maou.audio/" target="_blank">魔王魂</a>（森田交一）
+  &nbsp;／&nbsp; 効果音：Tone.js 生成
+</p>
+
+<script>
+// ── 状態 ──────────────────────────────────────
+let started = false;
+let currentPlayer = null;
+
+async function ensureStarted() {
+  if (!started) {
+    await Tone.start();
+    started = true;
+    const el = document.getElementById('status');
+    el.textContent = '● AudioContext: running';
+    el.className = 'ready';
+  }
+}
+
+// ── BGM ───────────────────────────────────────
+async function playBGM(file, btn) {
+  await ensureStarted();
+  stopAll(false);
+  document.querySelectorAll('.btn-play').forEach(b => {
+    b.classList.remove('active','error'); b.textContent = '▶';
+  });
+  btn.textContent = '…';
+
+  const player = new Tone.Player({
+    url: file, loop: true, autostart: false,
+    onload: () => { player.start(); btn.textContent = '▶'; btn.classList.add('active'); },
+    onerror: () => {
+      btn.textContent = '×'; btn.classList.add('error');
+      btn.title = file + ' が見つかりません';
+      currentPlayer = null;
+    }
+  }).toDestination();
+  currentPlayer = player;
+}
+
+function stopAll(resetBtns = true) {
+  if (currentPlayer) {
+    try { currentPlayer.stop(); currentPlayer.disconnect(); } catch(e){}
+    currentPlayer = null;
+  }
+  if (resetBtns) {
+    document.querySelectorAll('.btn-play').forEach(b => {
+      b.classList.remove('active','error'); b.textContent = '▶';
+    });
+  }
+}
+
+// ── フラッシュ ────────────────────────────────
+function flash(btn) {
+  btn.classList.add('flash');
+  setTimeout(() => btn.classList.remove('flash'), 300);
+}
+
+// ── カード音（破擦音系）────────────────────────
+// 白色ノイズ高域(シャッ) + 中域ノイズ(サッ) + 低域パルス(パン) の合成
+function makeCardSound(vel=0.6, dur=0.045, withThud=true) {
+  const now = Tone.now();
+  const g = new Tone.Gain(vel).toDestination();
+
+  // ① 高域ノイズ（ハイパス 3500Hz）― 紙の摩擦音「シャッ」
+  const hpFilt = new Tone.Filter({type:'highpass', frequency:3500, rolloff:-24});
+  const fricEnv = new Tone.AmplitudeEnvelope({
+    attack:0.001, decay:dur*0.9, sustain:0, release:0.008
+  });
+  const fricNoise = new Tone.Noise('white');
+  fricNoise.connect(hpFilt); hpFilt.connect(fricEnv); fricEnv.connect(g);
+  fricNoise.start(now); fricNoise.stop(now+dur+0.02);
+  fricEnv.triggerAttackRelease(dur*0.85, now);
+
+  // ② 中域ノイズ（バンドパス 2200Hz）― 紙の厚み感「サッ」
+  const bpFilt = new Tone.Filter({type:'bandpass', frequency:2200, Q:0.8});
+  const bodyEnv = new Tone.AmplitudeEnvelope({
+    attack:0.001, decay:dur*0.5, sustain:0, release:0.005
+  });
+  const bodyNoise = new Tone.Noise('white');
+  bodyNoise.connect(bpFilt); bpFilt.connect(bodyEnv); bodyEnv.connect(g);
+  bodyNoise.start(now); bodyNoise.stop(now+dur+0.02);
+  bodyEnv.triggerAttackRelease(dur*0.4, now);
+
+  // ③ 低域パルス（110→60Hz ピッチ下降）― 着地の「パン」
+  if (withThud) {
+    const thudG = new Tone.Gain(0.32).connect(g);
+    const thudOsc = new Tone.Oscillator(120, 'sine');
+    thudOsc.frequency.setValueAtTime(120, now);
+    thudOsc.frequency.exponentialRampToValueAtTime(60, now+0.018);
+    const thudEnv = new Tone.AmplitudeEnvelope({
+      attack:0.001, decay:0.022, sustain:0, release:0.005
+    });
+    thudOsc.connect(thudEnv); thudEnv.connect(thudG);
+    thudOsc.start(now); thudOsc.stop(now+0.04);
+    thudEnv.triggerAttackRelease(0.018, now);
+    setTimeout(()=>{try{thudOsc.dispose();thudEnv.dispose();thudG.dispose();}catch(e){}},200);
+  }
+
+  setTimeout(()=>{
+    try{
+      fricNoise.dispose(); hpFilt.dispose();  fricEnv.dispose();
+      bodyNoise.dispose(); bpFilt.dispose();  bodyEnv.dispose();
+      g.dispose();
+    }catch(e){}
+  }, (dur+0.15)*1000);
+}
+
+// ── ペラッ・パタッ（カードを1枚置く/配る）────
+// 薄い紙が翻る音: 低域ほぼなし、中域ノイズ主体、わずかな余韻
+function makeFlipSound(vel=0.55, dur=0.07) {
+  const now = Tone.now();
+  const g = new Tone.Gain(vel).toDestination();
+
+  // ① 中域ノイズ（バンドパス 1000-3000Hz）― 紙の「ペラ」感
+  //    アタックを少し遅らせてひらひら感を出す
+  const bp1 = new Tone.Filter({type:'bandpass', frequency:1600, Q:0.6});
+  const env1 = new Tone.AmplitudeEnvelope({
+    attack:0.004, decay:dur*0.85, sustain:0.0, release:0.02
+  });
+  const n1 = new Tone.Noise('pink');
+  n1.connect(bp1); bp1.connect(env1); env1.connect(g);
+  n1.start(now); n1.stop(now+dur+0.05);
+  env1.triggerAttackRelease(dur*0.8, now);
+
+  // ② 高域ノイズ（ハイパス 4000Hz）― 「ッ」という薄い摩擦尻
+  const hp1 = new Tone.Filter({type:'highpass', frequency:4000, rolloff:-12});
+  const env2 = new Tone.AmplitudeEnvelope({
+    attack:0.001, decay:dur*0.35, sustain:0, release:0.005
+  });
+  const n2 = new Tone.Noise('white');
+  n2.connect(hp1); hp1.connect(env2); env2.connect(g);
+  n2.start(now); n2.stop(now+dur+0.02);
+  env2.triggerAttackRelease(dur*0.3, now);
+
+  setTimeout(()=>{
+    try{ n1.dispose();bp1.dispose();env1.dispose();
+         n2.dispose();hp1.dispose();env2.dispose();g.dispose(); }catch(e){}
+  }, (dur+0.15)*1000);
+}
+
+// ── そろばん珠をはじく（SND_SRBN）────────────
+// makeCardSound（シャッ系）を流用、低域パルスは小さめ・硬め
+function makeSrbnHit(vel=0.70) {
+  // makeCardSoundのパラメータを調整して流用
+  // dur短め(35ms)、低域パルスあり(弱め)
+  const now = Tone.now();
+  const dur = 0.038;
+  const g = new Tone.Gain(vel).toDestination();
+
+  // 高域ノイズ（シャッ成分）
+  const hp = new Tone.Filter({type:'highpass', frequency:3800, rolloff:-24});
+  const e1 = new Tone.AmplitudeEnvelope({attack:0.001, decay:dur*0.8, sustain:0, release:0.006});
+  const n1 = new Tone.Noise('white');
+  n1.connect(hp); hp.connect(e1); e1.connect(g);
+  n1.start(now); n1.stop(now+dur+0.02);
+  e1.triggerAttackRelease(dur*0.75, now);
+
+  // 中域ノイズ（サッ成分）
+  const bp = new Tone.Filter({type:'bandpass', frequency:2400, Q:1.0});
+  const e2 = new Tone.AmplitudeEnvelope({attack:0.001, decay:dur*0.45, sustain:0, release:0.004});
+  const n2 = new Tone.Noise('white');
+  n2.connect(bp); bp.connect(e2); e2.connect(g);
+  n2.start(now); n2.stop(now+dur+0.02);
+  e2.triggerAttackRelease(dur*0.4, now);
+
+  // 低域パルス（小さめ・短め = プラスチックの軽い当たり感）
+  const thudG = new Tone.Gain(0.18).connect(g);
+  const thudOsc = new Tone.Oscillator(180, 'sine');
+  thudOsc.frequency.setValueAtTime(180, now);
+  thudOsc.frequency.exponentialRampToValueAtTime(90, now+0.012);
+  const thudE = new Tone.AmplitudeEnvelope({attack:0.001, decay:0.014, sustain:0, release:0.003});
+  thudOsc.connect(thudE); thudE.connect(thudG);
+  thudOsc.start(now); thudOsc.stop(now+0.03);
+  thudE.triggerAttackRelease(0.012, now);
+
+  setTimeout(()=>{
+    try{ n1.dispose();hp.dispose();e1.dispose();
+         n2.dispose();bp.dispose();e2.dispose();
+         thudOsc.dispose();thudE.dispose();thudG.dispose();g.dispose(); }catch(e){}
+  }, 200);
+}
+
+// ── MML 効果音 ────────────────────────────────
+
+// SND_CD: カードを1枚置く → ペラッ・パタッ
+async function snd_cd(btn) {
+  await ensureStarted(); flash(btn);
+  makeFlipSound(0.60, 0.075);
+}
+
+// SND_CD_SHUFFLE: 配る4連 → ペラペラペラペラ（長さと音量を微妙に変化）
+async function snd_cd_shuffle(btn) {
+  await ensureStarted(); flash(btn);
+  const iv = 0.125;
+  const params = [{v:0.58,d:0.072},{v:0.52,d:0.068},{v:0.60,d:0.078},{v:0.55,d:0.070}];
+  for (let i=0;i<4;i++) {
+    const p = params[i];
+    setTimeout(()=>makeFlipSound(p.v, p.d), i*iv*1000);
+  }
+}
+
+// SND_SRBN: そろばん珠をはじく → シャッ系
+async function snd_srbn(btn) {
+  await ensureStarted(); flash(btn);
+  makeSrbnHit(0.78);
+}
+
+// SND_SRBN_CLR: そろばんリセット → シャッ強→弱×6（MMLのタイミング忠実再現）
+async function snd_srbn_clr(btn) {
+  await ensureStarted(); flash(btn);
+  const t32=0.0625, t8=0.25, t64=0.03125;
+  let t=0;
+  // V120強: F#32分
+  setTimeout(()=>makeSrbnHit(1.0),  t*1000); t+=t32;
+  // V120強: F#8分（長めに鳴らす≒残響が長い）
+  setTimeout(()=>makeSrbnHit(0.92), t*1000); t+=t8;
+  // R8 休符
+  t+=t8;
+  // V80弱: F#64分 × 6（小刻み）
+  for(let i=0;i<6;i++){
+    setTimeout(()=>makeSrbnHit(0.48), t*1000);
+    t+=t64*2;
+  }
+}
+
+// ── BEEP 効果音 ───────────────────────────────
+async function beep_select(btn) {           // カウベル2
+  await ensureStarted(); flash(btn);
+  const now=Tone.now(), g=new Tone.Gain(0.38).toDestination();
+  [840,1056].forEach(f=>{
+    const osc=new Tone.Oscillator(f,'square');
+    const env=new Tone.AmplitudeEnvelope({attack:.001,decay:.18,sustain:0,release:.05});
+    osc.connect(env); env.connect(g);
+    osc.start(now); env.triggerAttackRelease(.15,now);
+    setTimeout(()=>{try{osc.stop();osc.dispose();env.dispose();}catch(e){}},400);
+  });
+  setTimeout(()=>{try{g.dispose();}catch(e){}},500);
+}
+async function beep_cancel(btn) {           // コンガ
+  await ensureStarted(); flash(btn);
+  const now=Tone.now(), g=new Tone.Gain(0.48).toDestination();
+
+  const osc=new Tone.Oscillator(260,'sine');
+  osc.frequency.setValueAtTime(260,now);
+  osc.frequency.exponentialRampToValueAtTime(155,now+.16);
+  const oscEnv=new Tone.AmplitudeEnvelope({attack:.001,decay:.24,sustain:0,release:.05});
+  osc.connect(oscEnv); oscEnv.connect(g);
+
+  const nFilt=new Tone.Filter(900,'lowpass');
+  const nEnv=new Tone.AmplitudeEnvelope({attack:.001,decay:.045,sustain:0,release:.01});
+  const noise=new Tone.Noise('pink');
+  noise.connect(nFilt); nFilt.connect(nEnv); nEnv.connect(g);
+
+  osc.start(now); osc.stop(now+.35);
+  noise.start(now); noise.stop(now+.06);
+  oscEnv.triggerAttackRelease(.22,now);
+  nEnv.triggerAttackRelease(.04,now);
+
+  setTimeout(()=>{try{osc.dispose();oscEnv.dispose();noise.dispose();nFilt.dispose();nEnv.dispose();g.dispose();}catch(e){}},600);
+}
+async function beep_click(btn) {            // シンセ
+  await ensureStarted(); flash(btn);
+  const now=Tone.now(), g=new Tone.Gain(0.32).toDestination();
+  const filt=new Tone.Filter(2200,'lowpass');
+  filt.frequency.setValueAtTime(2200,now);
+  filt.frequency.exponentialRampToValueAtTime(380,now+.08);
+  const osc=new Tone.Oscillator(1100,'sawtooth');
+  const env=new Tone.AmplitudeEnvelope({attack:.001,decay:.075,sustain:0,release:.02});
+  osc.connect(filt); filt.connect(env); env.connect(g);
+  osc.start(now); osc.stop(now+.15);
+  env.triggerAttackRelease(.065,now);
+  setTimeout(()=>{try{osc.dispose();filt.dispose();env.dispose();g.dispose();}catch(e){}},300);
+}
+async function beep_popup(btn) {            // 太鼓
+  await ensureStarted(); flash(btn);
+  const now=Tone.now(), g=new Tone.Gain(0.52).toDestination();
+
+  const osc=new Tone.Oscillator(80,'sine');
+  osc.frequency.setValueAtTime(165,now);
+  osc.frequency.exponentialRampToValueAtTime(58,now+.13);
+  const oscEnv=new Tone.AmplitudeEnvelope({attack:.001,decay:.30,sustain:0,release:.08});
+  osc.connect(oscEnv); oscEnv.connect(g);
+
+  const nFilt=new Tone.Filter(280,'lowpass');
+  const nEnv=new Tone.AmplitudeEnvelope({attack:.001,decay:.065,sustain:0,release:.02});
+  const noise=new Tone.Noise('brown');
+  noise.connect(nFilt); nFilt.connect(nEnv); nEnv.connect(g);
+
+  osc.start(now); osc.stop(now+.45);
+  noise.start(now); noise.stop(now+.09);
+  oscEnv.triggerAttackRelease(.32,now);
+  nEnv.triggerAttackRelease(.06,now);
+
+  setTimeout(()=>{try{osc.dispose();oscEnv.dispose();noise.dispose();nFilt.dispose();nEnv.dispose();g.dispose();}catch(e){}},700);
+}
+</script>
+</body>
+</html>
