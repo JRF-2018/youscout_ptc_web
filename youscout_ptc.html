@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+<title>易双六 — YOUSCOUT PTC Web Edition</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<style>
+:root {
+  --sw: min(384px, 100vw);
+  --sh: calc(var(--sw) * 0.75);   /* 上画面 256×192 */
+  --lh: calc(var(--sw) * 0.75);   /* 下画面 256×192 */
+  --board: #10431f;
+}
+* { box-sizing: border-box; margin: 0; padding: 0;
+    -webkit-tap-highlight-color: transparent; }
+html, body { min-height: 100vh; background: #000; overflow: auto; }
+body {
+  display: block;
+  overflow-x: hidden;
+  font-family: 'Courier New', 'MS Gothic', monospace;
+}
+
+/* タッチ操作: ピンチズーム・スクロールを許可しつつダブルタップズームを抑制 */
+#cv-upper-grp, #cv-upper-bg1, #cv-upper-bg0, #cv-upper-spr, #cv-upper-con,
+#cv-lower-grp, #cv-lower-bg1, #cv-lower-bg0, #cv-lower-spr, #cv-lower-con {
+  /*touch-action: manipulation;*/
+  touch-action: pinch-zoom;
+}
+
+/* ゲーム全体ラッパー */
+#game-wrapper {
+  width: var(--sw);
+  margin-left: auto;
+  margin-right: auto;
+  /*transform-origin: top center;*/
+  background: var(--board);  
+  display: flex; flex-direction: column; align-items: center;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* 上画面 */
+#upper {
+  width: var(--sw); height: var(--sh);
+  background: var(--board);
+  /*position: relative; overflow: hidden; flex-shrink: 0;*/
+  position: relative; overflow: clip; flex-shrink: 0;
+}
+#cv-upper {
+  width: var(--sw); height: var(--sh);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  display: block;
+  font-smooth: never;
+  -webkit-font-smoothing: none;
+}
+
+/* 境界線 */
+#divider {
+  width: var(--sw); height: 3px;
+  background: #1e6030;
+  flex-shrink: 0;
+}
+
+/* 下画面 */
+#lower {
+  width: var(--sw); height: var(--lh);
+  background: var(--board);
+  /*position: relative; overflow: hidden; flex-shrink: 0;*/
+  position: relative; overflow: clip; flex-shrink: 0;
+}
+#cv-lower {
+  width: var(--sw); height: var(--lh);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  display: block;
+  font-smooth: never;
+  -webkit-font-smoothing: none;
+}
+
+/* ローディング画面 */
+#loading {
+  position: fixed; inset: 0;
+  background: #10431f;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 100;
+  font-family: 'Courier New', monospace;
+  color: #c8a832;
+  gap: 16px;
+}
+#loading-title {
+  font-size: 24px; letter-spacing: .3em;
+}
+#loading-msg {
+  font-size: 11px; color: #50a060; letter-spacing: .1em;
+}
+.loading-dot {
+  animation: blink 1.2s infinite;
+}
+.loading-dot:nth-child(2) { animation-delay: .4s; }
+.loading-dot:nth-child(3) { animation-delay: .8s; }
+@keyframes blink { 0%,100%{opacity:0} 50%{opacity:1} }
+
+/* エラー表示 */
+#error-msg {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.8);
+  color: #ff4444;
+  font-family: monospace;
+  font-size: 13px;
+  padding: 32px;
+  z-index: 200;
+  white-space: pre-wrap;
+}
+</style>
+</head>
+<body>
+
+<!-- ローディング表示 -->
+<div id="loading">
+  <div id="loading-title">易双六</div>
+  <div id="loading-msg">
+    Loading<span class="loading-dot">.</span><span class="loading-dot">.</span><span class="loading-dot">.</span>
+  </div>
+</div>
+
+<!-- エラー表示 -->
+<div id="error-msg"></div>
+
+<!-- ゲーム本体 -->
+<div id="game-container">
+<div id="game-wrapper">
+  <div id="upper" style="position:relative; width:var(--sw); height:var(--sh); flex-shrink:0;">
+    <canvas id="cv-upper-grp" width="256" height="192" style="position:absolute;top:0;left:0;width:100%;height:100%;image-rendering:pixelated;"></canvas>
+    <canvas id="cv-upper-bg1" width="256" height="192" style="position:absolute;top:0;left:0;width:100%;height:100%;image-rendering:pixelated;pointer-events:none;"></canvas>
+    <canvas id="cv-upper-bg0" width="256" height="192" style="position:absolute;top:0;left:0;width:100%;height:100%;image-rendering:pixelated;pointer-events:none;"></canvas>
+    <canvas id="cv-upper-spr" width="256" height="192" style="position:absolute;top:0;left:0;width:100%;height:100%;image-rendering:pixelated;pointer-events:none;"></canvas>
+    <canvas id="cv-upper-con" width="512" height="384" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
+  </div>
+  <div id="divider"></div>
+  <div id="lower" style="position:relative; width:var(--sw); height:var(--lh); flex-shrink:0;">
+    <canvas id="cv-lower-grp" width="256" height="192" style="position:absolute;top:0;left:0;width:100%;height:100%;image-rendering:pixelated;"></canvas>
+    <canvas id="cv-lower-bg1" width="256" height="192" style="position:absolute;top:0;left:0;width:100%;height:100%;image-rendering:pixelated;pointer-events:none;"></canvas>
+    <canvas id="cv-lower-bg0" width="256" height="192" style="position:absolute;top:0;left:0;width:100%;height:100%;image-rendering:pixelated;pointer-events:none;"></canvas>
+    <canvas id="cv-lower-spr" width="256" height="192" style="position:absolute;top:0;left:0;width:100%;height:100%;image-rendering:pixelated;pointer-events:none;"></canvas>
+    <canvas id="cv-lower-con" width="512" height="384" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
+  </div>
+</div>
+</div>
+
+<script type="module">
+// ============================================================
+// メインエントリポイント
+// ============================================================
+import { emuInit, startLoop, setRenderCallback, colmapInit, loadAllSheets, enableAudioOnInteraction } from './js/emu.js';
+import { libInit } from './js/lib.js';
+import { setCanvases, loadGrpImages } from './js/render.js';
+import { gameInit, gameMain } from './js/game.js';
+import { JRFTAROT_CMAP } from './js/data.js';
+
+const cvUgrp = document.getElementById('cv-upper-grp');
+const cvUcon = document.getElementById('cv-upper-con');
+const cvLgrp = document.getElementById('cv-lower-grp');
+const cvLcon = document.getElementById('cv-lower-con');
+
+// ============================================================
+// iPad等のスケール対応 (yschelp.htmlと同方式)
+// ============================================================
+// function scaleGameWrapper() {
+//   const wrapper = document.getElementById('game-wrapper');
+
+//   // XREA広告等の上部要素の高さを取得してゲーム領域の有効高さを計算
+//   let adHeight = 0;
+//   for (const el of document.body.children) {
+//     if (el === wrapper) break;
+//     const st = window.getComputedStyle(el);
+//     if (st.position !== 'fixed' && st.position !== 'absolute') {
+//       adHeight += el.getBoundingClientRect().height;
+//     }
+//   }
+
+//   wrapper.style.transform = 'none';
+//   const rect = wrapper.getBoundingClientRect();
+//   const GAME_W = rect.width  || 384;
+//   const GAME_H = rect.height || 387;
+
+//   const s = Math.min(
+//     window.innerWidth / GAME_W,
+//     (window.innerHeight - adHeight - 8) / GAME_H,
+//     2
+//   );
+
+//   wrapper.style.position = 'absolute';
+//   wrapper.style.left = '50%';
+//   wrapper.style.top = adHeight + 'px';
+//   wrapper.style.transform = `translateX(-50%) scale(${s})`;
+//   wrapper.style.transformOrigin = 'top center';
+// }
+function scaleGameWrapper() {
+  const wrapper = document.getElementById('game-wrapper');
+
+  wrapper.style.transform = 'none';
+
+  const rect = wrapper.getBoundingClientRect();
+
+  const GAME_W = rect.width || 384;
+  const GAME_H = rect.height || 387;
+
+  const s = Math.min(
+    window.innerWidth / GAME_W,
+    (window.innerHeight - 100) / GAME_H,
+  );
+
+  wrapper.style.transform = `scale(${s})`;
+  wrapper.style.transformOrigin = 'top center';
+  wrapper.style.marginLeft = 'auto';
+  wrapper.style.marginRight = 'auto';
+}
+scaleGameWrapper();
+window.addEventListener('resize', scaleGameWrapper);
+
+// ============================================================
+// ロード処理
+// ============================================================
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.style.display = 'block';
+  document.getElementById('loading').style.display = 'none';
+}
+
+function setLoadingMsg(msg) {
+  document.getElementById('loading-msg').textContent = msg;
+}
+
+async function main() {
+  try {
+    setLoadingMsg('Initializing display...');
+
+    // emuレイヤー初期化
+    emuInit(cvUgrp, cvLgrp, cvUcon, cvLcon);
+    libInit(cvUcon, cvLcon);
+    setCanvases(cvUgrp, cvLgrp);
+
+    // CMAPパレット初期化
+    colmapInit(JRFTAROT_CMAP);
+
+    setLoadingMsg('Loading sprites...');
+
+    // スプライトシート一括ロード
+    await loadAllSheets('./');
+
+    setLoadingMsg('Loading card images...');
+
+    // GRPカード画像ロード
+    await loadGrpImages('./');
+
+    // ゲーム初期化（設定ロード等）
+    await gameInit(cvUgrp, cvLgrp);
+
+    setLoadingMsg('Starting...');
+
+    // 最初のユーザー操作でオーディオ起動
+    enableAudioOnInteraction();
+
+    // メインループ開始
+    startLoop();
+
+    // ローディング非表示
+    document.getElementById('loading').style.display = 'none';
+
+    // ゲームメインループ実行
+    await gameMain();
+
+    // '@END' に達したとき
+    console.log('Game ended normally.');
+
+  } catch (err) {
+    console.error(err);
+    showError(`Error: ${err.message}\n\n${err.stack}`);
+  }
+}
+
+
+
+// yschelp.htmlから戻ってきた場合の処理
+function _checkReturn() {
+  const returnUrl = sessionStorage.getItem('youscout_return');
+  if (returnUrl && location.href.includes('youscout_ptc.html')) {
+    sessionStorage.removeItem('youscout_return');
+    // ゲーム状態はlocalStorageから自動的に復元される
+  }
+}
+_checkReturn();
+
+main();
+</script>
+</body>
+</html>
