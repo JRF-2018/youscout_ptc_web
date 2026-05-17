@@ -430,9 +430,9 @@ async function playBGM(n) {
   document.getElementById('bgmlabel').textContent =
     n >= 0 ? `♪ ${BGM_NAMES[n] || n}` : '♪ —';
   if (n < 0 || !BGM_FILES[n]) return;
+  // プリロード済みバッファがあれば即時再生、なければロード後再生
   bgmPlayer = new Tone.Player({
-    url: BGM_FILES[n], loop: true, autostart: false,
-    onload: () => { if (bgmCur === n) bgmPlayer.start(); },
+    url: BGM_FILES[n], loop: true, autostart: true,
     onerror: () => {}
   }).toDestination();
 }
@@ -656,8 +656,19 @@ async function renderPage(label) {
   let textBuf = '';
 
   // スーツ文字を色付きspanに変換してDOMに追加（全角変換後）
-  const SUIT_RE = /([♠♦♥♣])/g;
-  const SUIT_CLASS = {'♠':'suit-s','♦':'suit-d','♥':'suit-h','♣':'suit-c'};
+  // PRG DECORATE_CHARS$ = SUIT_CHARS$ + BUTTON_CHARS$ + CHR$(6)
+  // DECORATE_COLS$ = "23454325773"
+  // col2=青, col3=黄, col4=赤, col5=緑, col7=白(矢印等)
+  const DECOR_RE = /([♠♦♥♣ⒶⒷⓍⓎ→←↑↓])/g;
+  const DECOR_CLASS = {
+    '♠':'suit-s', '♦':'suit-d', '♥':'suit-h', '♣':'suit-c',
+    'Ⓐ':'suit-h',  // 赤
+    'Ⓑ':'suit-d',  // 黄
+    'Ⓧ':'suit-s',  // 青
+    'Ⓨ':'suit-c',  // 緑
+  };
+  const SUIT_RE = DECOR_RE;
+  const SUIT_CLASS = DECOR_CLASS;
   function flushText() {
     if (!textBuf) return;
     const buf = toFullWidth(textBuf);
@@ -791,7 +802,11 @@ async function renderPage(label) {
             continue;
           }
           if (act === 'exit') {
-            if (linkText.trim()) addILink(linkText, 'ilink', () => {});
+            if (linkText.trim()) addILink(linkText, 'ilink', () => {
+              // スプラッシュ画面に戻る
+              document.getElementById('game-wrapper').style.display = 'none';
+              document.getElementById('splash').style.display = 'flex';
+            });
             continue;
           }
         }
@@ -838,10 +853,15 @@ function doNav(dir) {
   clickSFX();
   if (dir === 'B') {
     const spec = navLinks.B;
-    if (!spec) return;  // BACKが登録されていなければ何もしない
+    if (!spec) return;
     if (spec === '@PREV' || spec === '') { doPrev(); return; }
     const d = evalSpec(spec);
-    if (!d || d.label === '@') return;
+    if (!d) return;
+    if (d.label === '@') {
+      document.getElementById('game-wrapper').style.display = 'none';
+      document.getElementById('splash').style.display = 'flex';
+      return;
+    }
     if (d.label === '@PREV') { doPrev(); return; }
     if (d.setFlag) setFlag(d.setFlag, true);
     history.pop();
@@ -850,7 +870,12 @@ function doNav(dir) {
     const spec = navLinks[dir];
     if (!spec) return;
     const d = evalSpec(spec);
-    if (!d || d.label === '@') return;
+    if (!d) return;
+    if (d.label === '@') {
+      document.getElementById('game-wrapper').style.display = 'none';
+      document.getElementById('splash').style.display = 'flex';
+      return;
+    }
     if (d.setFlag) setFlag(d.setFlag, true);
     history.pop();
     renderPage(d.label);
@@ -970,7 +995,9 @@ async function startApp(lang) {
   }
 
   document.getElementById('splash').style.display = 'none';
+  document.getElementById('game-wrapper').style.display = 'flex';
   scaleGameWrapper();
+  window.removeEventListener('resize', scaleGameWrapper);
   window.addEventListener('resize', scaleGameWrapper);
 
   // G:FILENAME チェック用に画像を事前ロード
