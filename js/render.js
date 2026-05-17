@@ -923,6 +923,8 @@ function _updateSel(sel) {
 
 function _selAndDisplay(mode, sel) {
   _updateSel(sel);
+  // PRG準拠: sel が大アルカナ(0-5)以外に変わるときはomitRdln
+  if (sel < 0 || sel > 5) omitRdln();
   if (sel === -1) {
     if (mode === 'TALON') {
       // TALONモード: drewメッセージはmodeWCalcで表示済み
@@ -1026,8 +1028,8 @@ export async function mainPnlLoopR(mode) {
         }
       }
 
-      // place 6,7: 小アルカナ領域（CARDS_X[6/7], CARDS_Y[6/7], CARDS_W, CARDS_H）
-      if (!hitCard) {
+      // place 6,7: 小アルカナ領域（PLACEモードでは選択不可）
+      if (!hitCard && mode !== 'PLACE') {
         for (const i of [6, 7]) {
           let dx = CARDS_X[i], dy = CARDS_Y[i];
           if (gs.urev) { dx = GRP_W - dx - CARDS_W; dy = GRP_H - dy - CARDS_H; }
@@ -1039,7 +1041,7 @@ export async function mainPnlLoopR(mode) {
         }
       }
 
-      // place 8: purposeカード（drawPurposeの基本位置: x=2, y=CARDS_CENTER_Y-CARD_HH-8）
+      // place 8: purposeカード（PLACE/TALONモード共通で選択・表示OK、ただし配置候補にはならない）
       if (!hitCard) {
         let px = 2, py = CARDS_CENTER_Y - CARD_HH - 8;
         if (gs.urev) { px = GRP_W - px - CARD_WIDTH; py = GRP_H - py - CARD_HEIGHT; }
@@ -1170,8 +1172,13 @@ function _clickSrbn(rightQ, mag, fiveQ, y) {
 }
 
 function _checkPlaceValid(i) {
-  if (gs.purpose === 'A00' && i >= 3) return false;
-  if (gs.purpose === 'A13' && i < 3)  return false;
+  // place 0-5のみ有効
+  if (i < 0 || i > 5) return false;
+  // purposeDeg != 0 (swap_8_11 === 'solid') のときのみ追加制限
+  if (gs.purposeDeg !== 0) {
+    if (gs.purpose === 'A00' && i >= 3) return false;
+    if (gs.purpose === 'A13' && i < 3)  return false;
+  }
   return true;
 }
 

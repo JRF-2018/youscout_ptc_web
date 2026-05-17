@@ -424,6 +424,34 @@ async function modeStart() {
   // 8/11入れ替え判定 (swap_8_11設定による)
   let needSwap = _calcNeedSwap(oddCount, swapScore);
 
+  // PRG @_MODE_START_S: swap_8_11 == "solid" のときのみ purposeDeg を計算
+  // それ以外は purposeDeg = 0 のまま
+  gs.purposeDeg = 0;
+  if (gs.swap811 === 'solid') {
+    let R = 0;
+    for (let i = 0; i < 6; i++) {
+      const cd = gs.board[i];
+      let A = parseInt(cd.slice(1, 3));
+      if (needSwap && (A === 8 || A === 11)) A = (A === 8) ? 11 : 8;
+      const orient = cd[3];
+      if (A % 2 === 1) R += 1;
+      if (orient === 'U') R += 16;
+      if (orient === 'U' && A % 2 === 1) R += 256;
+      if (orient === 'R' && A % 2 === 0) R += 256;
+    }
+    const A0 = R % 16;
+    if (A0 === 3) {
+      const A1 = Math.floor((R % 256) / 16);
+      if      (A1 === 0) { gs.purposeDeg = 90;  gs.purpose = 'A13'; }
+      else if (A1 === 6) { gs.purposeDeg = 90;  gs.purpose = 'A00'; }
+      else {
+        const A2 = Math.floor(R / 256);
+        if      (A2 === 0) { gs.purposeDeg = 270; gs.purpose = 'A13'; }
+        else if (A2 === 6) { gs.purposeDeg = 270; gs.purpose = 'A00'; }
+      }
+    }
+  }
+
   // 上下CON canvasを全クリア（タイトルメニュー等を消す）
   for (const s of [SCREEN_U, SCREEN_L]) {
     conState.clipCX[s]=0; conState.clipCY[s]=0;
